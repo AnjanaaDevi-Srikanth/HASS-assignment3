@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+  <head>
+    <style>
+     h1 {
+    margin: auto;
+    color: teal;
+    width: 750px;
+    text-align: justify;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size:30px;
+    text-align: center;
+    }
+    p {
+    margin: auto;
+    width: 750px;
+    text-align: justify;
+    font-family: Arial, Helvetica, sans-serif;
+    }
+    </style>
+  </head>
+<h1>Visualising the distribution of resale flats in Queenstown in 2022</h1>
+<body>
+  <p><br><br>The chart visualises the distribution of flats according to their type and resale price, in Queenstown during Jan-Mar 2022. The chart seeks to display the supply of flats in each price range. The violin plot is chosen as the idiom because violin plots are used to observe the distribution of numeric data, and are useful when comparing distributions between multiple groups. <br><br>Source of data: Resale Flat Prices, data.gov.sg   </p>
+</body>
+
+
+<!-- Load d3.js-->
+<script src="https://d3js.org/d3.v4.js"></script>
+
+<!-- Create a div where the graph will take place -->
+<div id="my_dataviz"></div>
+
+<script>
+
+// set the dimensions and margins of the graph
+var margin = {top: 50, right: 30, bottom: 30, left: 600},
+    width = 1050 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+   
+
+// append the svg object to the body of the page
+var svg = d3.select("#my_dataviz")
+  .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+
+// Read the data 
+d3.csv("https://raw.githubusercontent.com/AnjanaaDevi-Srikanth/HASS-assignent3/main/resale_edited.csv", function(data) { 
+  console.log(data)
+  // Build and Show the Y scale
+  var y = d3.scaleLinear()
+    .domain([ 200000,1300000 ])          // Y scale is set manually - to represent resale prices in thousands
+    .range([height, 0])
+  svg.append("g").call( d3.axisLeft(y) )
+
+  // Build and Show the X scale. It is a band scale like for a boxplot: each group has an dedicated RANGE on the axis. This range has a length of x.bandwidth
+  var x = d3.scaleBand()
+    .range([ 0, width ])
+    .domain(["2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE"])
+    .padding(0.2)     // This is important: it is the space between 2 groups. 0 means no padding. 1 is the maximum.
+  svg.append("g")
+    .attr("transform", "translate(0," + height + ")")
+    .call(d3.axisBottom(x))
+
+  // Features of the histogram
+  var histogram = d3.histogram()
+        .domain(y.domain())
+        .thresholds(y.ticks(15))    // Important: how many bins approx are going to be made? It is the 'resolution' of the violin plot
+        .value(d => d)
+        
+  // Compute the binning for each group of the dataset
+  var sumstat = d3.nest()  // nest function allows to group the calculation per level of a factor
+    .key(function(d) { return d.flat_type;})
+    .rollup(function(d) {   // For each key..
+      input = d.map(function(g) { return g.resale_price;})    // Keep the variable called Resale_price
+      bins = histogram(input)   // And compute the binning on it.
+      return(bins)
+    })
+    .entries(data)
+
+  // What is the biggest number of value in a bin? We need it cause this value will have a width of 100% of the bandwidth.
+  var maxNum = 0
+  for ( i in sumstat ){
+    allBins = sumstat[i].value
+    lengths = allBins.map(function(a){return a.length;})
+    longest = d3.max(lengths)
+    if (longest > maxNum) { maxNum = longest }
+    console.log(sumstat[i]) 
+  }
+
+  // The maximum width of a violin must be x.bandwidth = the width dedicated to a group
+  var xNum = d3.scaleLinear()
+    .range([0, x.bandwidth()])
+    .domain([-maxNum,maxNum])
+
+  // Add the shape to this svg
+  svg
+    .selectAll("myViolin")
+    .data(sumstat)
+    .enter()        // So now we are working group per group
+    .append("g")
+      .attr("transform", function(d){ return("translate(" + x(d.key) +" ,0)") } ) // Translation on the right to be at the group position 
+    .append("path")
+        .datum(function(d){ return(d.value)})     // So now we are working bin per bin
+        .style("stroke", "none")
+        .style("fill","teal")
+        .attr("d", d3.area()
+            .x0(function(d){ return(xNum(-d.length)) } )
+            .x1(function(d){ return(xNum(d.length)) } )
+            .y(function(d){ return(y(d.x0)) } )
+            .curve(d3.curveStep)   
+        )
+})
+
+</script>
+</html>
